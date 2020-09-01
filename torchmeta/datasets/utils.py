@@ -1,6 +1,6 @@
 import os
 import json
-from torchvision.datasets.utils import makedir_exist_ok, check_integrity
+from torchvision.datasets.utils import check_integrity
 
 
 def get_asset_path(*args):

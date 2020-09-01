@@ -117,6 +117,21 @@ def main(args, mode, iteration=None):
                 state_dict = model.state_dict()
                 torch.save(state_dict, f)
 
+
+    # Save best model
+    if args.meta_val:
+        filename = os.path.join(args.output_folder, args.dataset+'_'+args.save_name, 'logs', 'logs.csv')
+        valid_logs = list(pd.read_csv(filename)['valid_accuracy'])
+        
+        max_acc = max(valid_logs)
+        curr_acc = np.mean(accuracy_logs)
+        
+        if max_acc < curr_acc:
+            filename = os.path.join(args.output_folder, args.dataset+'_'+args.save_name, 'models', 'best_val_acc_model.pt')
+            with open(filename, 'wb') as f:
+                state_dict = model.state_dict()
+                torch.save(state_dict, f)
+                
     return loss_logs, accuracy_logs
 
 if __name__ == '__main__':
@@ -165,7 +180,7 @@ if __name__ == '__main__':
     
     args.device = torch.device(args.device)  
     model = load_model(args)
-        
+    
     if args.ortho_init:
         X = np.random.randn(5, 1600)
         Q = gs(X)
@@ -174,7 +189,9 @@ if __name__ == '__main__':
     
     log_pd = pd.DataFrame(np.zeros([args.batch_iter*args.train_batches, 6]),
                           columns=['train_error', 'train_accuracy', 'valid_error', 'valid_accuracy', 'test_error', 'test_accuracy'])
-
+    filename = os.path.join(args.output_folder, args.dataset+'_'+args.save_name, 'logs', 'logs.csv')
+    log_pd.to_csv(filename, index=False)
+    
     for iteration in tqdm(range(args.batch_iter)):
         meta_train_loss_logs, meta_train_accuracy_logs = main(args=args, mode='meta_train', iteration=iteration)
         meta_valid_loss_logs, meta_valid_accuracy_logs = main(args=args, mode='meta_valid', iteration=iteration)
