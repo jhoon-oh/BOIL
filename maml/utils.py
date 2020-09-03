@@ -1,3 +1,4 @@
+import copy
 import torch
 import torch.nn as nn
 
@@ -5,6 +6,7 @@ from maml.model import ConvNet, BasicBlock, BasicBlockWithoutResidual, ResNet
 from torchmeta.datasets.helpers import (miniimagenet, tieredimagenet, cifar_fs, fc100,
                                         cub, vgg_flower, aircraft, traffic_sign, svhn, cars)
 from collections import OrderedDict
+from torchmeta.modules import MetaModule
 
 def load_dataset(args, mode):
     folder = args.folder
@@ -153,37 +155,63 @@ def load_model(args):
         model = ResNet(blocks=blocks, keep_prob=1.0, avg_pool=True, drop_rate=0.0, out_features=args.num_ways, wh_size=1)
     return model
 
-def update_parameters(model, loss, extractor_step_size, classifier_step_size, first_order=False):
-    """Update the parameters of the model, with one step of gradient descent.
-
+def update_parameters(model,
+                      loss,
+                      extractor_step_size,
+                      classifier_step_size,
+                      params=None,
+                      first_order=False):
+    """Update of the meta-parameters with one step of gradient descent on the
+    loss function.
     Parameters
     ----------
-    model : `MetaModule` instance
-        Model.
-    loss : `torch.FloatTensor` instance
-        Loss function on which the gradient are computed for the descent step.
-    step_size : float (default: `0.5`)
-        Step-size of the gradient descent step.
+    model : `torchmeta.modules.MetaModule` instance
+        The model.
+    loss : `torch.Tensor` instance
+        The value of the inner-loss. This is the result of the training dataset
+        through the loss function.
+    params : `collections.OrderedDict` instance, optional
+        Dictionary containing the meta-parameters of the model. If `None`, then
+        the values stored in `model.meta_named_parameters()` are used. This is
+        useful for running multiple steps of gradient descent as the inner-loop.
+    step_size : int, `torch.Tensor`, or `collections.OrderedDict` instance (default: 0.5)
+        The step size in the gradient update. If an `OrderedDict`, then the
+        keys must match the keys in `params`.
     first_order : bool (default: `False`)
-        If `True`, use the first-order approximation of MAML.
-
+        If `True`, then the first order approximation of MAML is used.
     Returns
     -------
-    params : OrderedDict
-        Dictionary containing the parameters after one step of adaptation.
+    updated_params : `collections.OrderedDict` instance
+        Dictionary containing the updated meta-parameters of the model, with one
+        gradient update wrt. the inner-loss.
     """
+    if not isinstance(model, MetaModule):
+        raise ValueError('The model must be an instance of `torchmeta.modules.'
+                         'MetaModule`, got `{0}`'.format(type(model)))
+
+    if params is None:
+        params = OrderedDict(model.meta_named_parameters())
+
     grads = torch.autograd.grad(loss,
-                                model.meta_parameters(),
+                                params.values(),
                                 create_graph=not first_order)
 
-    params = OrderedDict()
-    for (name, param), grad in zip(model.meta_named_parameters(), grads):
-        if 'classifier' in name: # To control inner update parameter
-            params[name] = param - classifier_step_size * grad
-        else:
-            params[name] = param - extractor_step_size * grad
+    updated_params = OrderedDict()
     
-    return params
+    
+    step_size=0.0 # not OrderedDict type
+    if isinstance(step_size, (dict, OrderedDict)):
+        for (name, param), grad in zip(params.items(), grads):
+            updated_params[name] = param - step_size[name] * grad
+
+    else:
+        for (name, param), grad in zip(params.items(), grads):
+            if 'classifier' in name: # To control inner update parameter
+                updated_params[name] = param - classifier_step_size * grad
+            else:
+                updated_params[name] = param - extractor_step_size * grad
+
+    return updated_params
 
 def get_accuracy(logits, targets):
     """Compute the accuracy (after adaptation) of MAML on the test/query points

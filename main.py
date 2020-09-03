@@ -1,5 +1,6 @@
 import os
 import copy
+import random
 import numpy as np
 import pandas as pd
 import torch
@@ -30,7 +31,16 @@ def gs(X):
     
     return Q
 
+def fix_seed(seed):
+    torch.manual_seed(seed)
+    torch.cuda.manual_seed(seed)
+    torch.backends.cudnn.deterministic = True
+    np.random.seed(seed)
+    random.seed(seed)
+
 def main(args, mode, iteration=None):
+    fix_seed(9999)
+
     dataset = load_dataset(args, mode)
     dataloader = BatchMetaDataLoader(dataset, batch_size=args.batch_size, shuffle=True, num_workers=args.num_workers)
     
@@ -78,17 +88,20 @@ def main(args, mode, iteration=None):
             accuracy = torch.tensor(0., device=args.device)
                 
             for task_idx, (support_input, support_target, query_input, query_target) in enumerate(zip(support_inputs, support_targets, query_inputs, query_targets)):
-                support_features, support_logit = model(support_input)
-                inner_loss = F.cross_entropy(support_logit, support_target)
+                params = None
+                for _ in range(args.inner_update_num):
+                    support_features, support_logit = model(support_input, params=params)
+                    inner_loss = F.cross_entropy(support_logit, support_target)
                     
-                model.zero_grad()
-                
-                params = update_parameters(model,
-                                           inner_loss,
-                                           extractor_step_size=args.extractor_step_size,
-                                           classifier_step_size=args.classifier_step_size,
-                                           first_order=args.first_order)
-                
+                    params = update_parameters(model,
+                                               inner_loss,
+                                               extractor_step_size=args.extractor_step_size,
+                                               classifier_step_size=args.classifier_step_size,
+                                               params=params,
+                                               first_order=args.first_order)
+                    
+                    model.zero_grad()
+                    
                 query_features, query_logit = model(query_input, params=params)
                 outer_loss += F.cross_entropy(query_logit, query_target)
                 
@@ -149,6 +162,7 @@ if __name__ == '__main__':
     parser.add_argument('--meta-lr', type=float, default=1e-3, help='Learning rate of meta optimizer.')
 
     parser.add_argument('--first-order', action='store_true', help='Use the first-order approximation of MAML.')
+    parser.add_argument('--inner-update-num', type=int, default=1, help='The number of inner updates (default: 1).')
     parser.add_argument('--extractor-step-size', type=float, default=0.5, help='Extractor step-size for the gradient step for adaptation (default: 0.5).')
     parser.add_argument('--classifier-step-size', type=float, default=0.5, help='Classifier step-size for the gradient step for adaptation (default: 0.5).')
     parser.add_argument('--hidden-size', type=int, default=64, help='Number of channels for each convolutional layer (default: 64).')
