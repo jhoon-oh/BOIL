@@ -5,7 +5,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 from torch.distributions import Bernoulli
 from torchmeta.modules import (MetaModule, MetaSequential, MetaConv2d,
-                               MetaGCNConv, MetaBatchNorm2d, MetaLinear)
+                               MetaBatchNorm2d, MetaLinear)
 from torchmeta.modules.utils import get_subdict
 
 """
