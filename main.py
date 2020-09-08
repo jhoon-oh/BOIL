@@ -124,7 +124,7 @@ def main(args, mode, iteration=None):
 
     # Save model
     if args.meta_train:
-        filename = os.path.join(args.output_folder, args.dataset+'_'+args.save_name, 'models', 'epochs_{}.pt'.format((iteration+1)*total))
+        filename = os.path.join(args.output_folder, args.save_dir, 'models', 'epochs_{}.pt'.format((iteration+1)*total))
         if (iteration+1)*total % 5000 == 0:
             with open(filename, 'wb') as f:
                 state_dict = model.state_dict()
@@ -133,14 +133,14 @@ def main(args, mode, iteration=None):
 
     # Save best model
     if args.meta_val:
-        filename = os.path.join(args.output_folder, args.dataset+'_'+args.save_name, 'logs', 'logs.csv')
+        filename = os.path.join(args.output_folder, args.save_dir, 'logs', 'logs.csv')
         valid_logs = list(pd.read_csv(filename)['valid_accuracy'])
         
         max_acc = max(valid_logs)
         curr_acc = np.mean(accuracy_logs)
         
         if max_acc < curr_acc:
-            filename = os.path.join(args.output_folder, args.dataset+'_'+args.save_name, 'models', 'best_val_acc_model.pt')
+            filename = os.path.join(args.output_folder, args.save_dir, 'models', 'best_val_acc_model.pt')
             with open(filename, 'wb') as f:
                 state_dict = model.state_dict()
                 torch.save(state_dict, f)
@@ -181,14 +181,18 @@ if __name__ == '__main__':
     parser.add_argument('--ortho-init', action='store_true', help='Use the head from the orthononal model.')
     parser.add_argument('--outer-fix', action='store_true', help='Fix the head during outer updates.')
     
-    args = parser.parse_args()  
-    os.makedirs(os.path.join(args.output_folder, args.dataset+'_'+args.save_name, 'logs'), exist_ok=True)
-    os.makedirs(os.path.join(args.output_folder, args.dataset+'_'+args.save_name, 'models'), exist_ok=True)
+    args = parser.parse_args()
+    args.save_dir = '{}_{}shot_{}_{}'.format(args.dataset,
+                                             args.num_shots,
+                                             args.model,
+                                             args.save_name)
+    os.makedirs(os.path.join(args.output_folder, args.save_dir, 'logs'), exist_ok=True)
+    os.makedirs(os.path.join(args.output_folder, args.save_dir, 'models'), exist_ok=True)
     
     arguments_txt = "" 
     for k, v in args.__dict__.items():
         arguments_txt += "{}: {}\n".format(str(k), str(v))
-    filename = os.path.join(args.output_folder, args.dataset+'_'+args.save_name, 'logs', 'arguments.txt')
+    filename = os.path.join(args.output_folder, args.save_dir, 'logs', 'arguments.txt')
     with open(filename, 'w') as f:
         f.write(arguments_txt[:-1])
     
@@ -203,7 +207,7 @@ if __name__ == '__main__':
     
     log_pd = pd.DataFrame(np.zeros([args.batch_iter*args.train_batches, 6]),
                           columns=['train_error', 'train_accuracy', 'valid_error', 'valid_accuracy', 'test_error', 'test_accuracy'])
-    filename = os.path.join(args.output_folder, args.dataset+'_'+args.save_name, 'logs', 'logs.csv')
+    filename = os.path.join(args.output_folder, args.save_dir, 'logs', 'logs.csv')
     log_pd.to_csv(filename, index=False)
     
     for iteration in tqdm(range(args.batch_iter)):
@@ -213,11 +217,11 @@ if __name__ == '__main__':
         log_pd['train_accuracy'][iteration*args.train_batches:(iteration+1)*args.train_batches] = meta_train_accuracy_logs
         log_pd['valid_error'][(iteration+1)*args.train_batches-1] = np.mean(meta_valid_loss_logs)
         log_pd['valid_accuracy'][(iteration+1)*args.train_batches-1] = np.mean(meta_valid_accuracy_logs)
-        filename = os.path.join(args.output_folder, args.dataset+'_'+args.save_name, 'logs', 'logs.csv')
+        filename = os.path.join(args.output_folder, args.save_dir, 'logs', 'logs.csv')
         log_pd.to_csv(filename, index=False)
         
     meta_test_loss_logs, meta_test_accuracy_logs = main(args=args, mode='meta_test')
     log_pd['test_error'][args.batch_iter*args.train_batches-1] = np.mean(meta_test_loss_logs)
     log_pd['test_accuracy'][args.batch_iter*args.train_batches-1] = np.mean(meta_test_accuracy_logs)
-    filename = os.path.join(args.output_folder, args.dataset+'_'+args.save_name, 'logs', 'logs.csv')
+    filename = os.path.join(args.output_folder, args.save_dir, 'logs', 'logs.csv')
     log_pd.to_csv(filename, index=False)
