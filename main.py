@@ -93,14 +93,14 @@ def main(args, mode, iteration=None):
                     support_features, support_logit = model(support_input, params=params)
                     inner_loss = F.cross_entropy(support_logit, support_target)
                     
+                    model.zero_grad()
+                    
                     params = update_parameters(model,
                                                inner_loss,
                                                extractor_step_size=args.extractor_step_size,
                                                classifier_step_size=args.classifier_step_size,
                                                params=params,
                                                first_order=args.first_order)
-                    
-                    model.zero_grad()
                     
                 query_features, query_logit = model(query_input, params=params)
                 outer_loss += F.cross_entropy(query_logit, query_target)

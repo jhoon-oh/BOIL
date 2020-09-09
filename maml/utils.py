@@ -197,8 +197,7 @@ def update_parameters(model,
                                 create_graph=not first_order)
 
     updated_params = OrderedDict()
-    
-    
+        
     step_size=0.0 # not OrderedDict type
     if isinstance(step_size, (dict, OrderedDict)):
         for (name, param), grad in zip(params.items(), grads):
