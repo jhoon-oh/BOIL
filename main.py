@@ -7,6 +7,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from tqdm import tqdm
+from collections import OrderedDict
 
 from torchmeta.utils.data import BatchMetaDataLoader
 from maml.utils import load_dataset, load_model, update_parameters, get_accuracy
@@ -31,32 +32,32 @@ def gs(X):
     
     return Q
 
-def fix_seed(seed):
-    torch.manual_seed(seed)
-    torch.cuda.manual_seed(seed)
-    torch.backends.cudnn.deterministic = True
-    np.random.seed(seed)
-    random.seed(seed)
-
 def main(args, mode, iteration=None):
-    fix_seed(9999)
-
     dataset = load_dataset(args, mode)
     dataloader = BatchMetaDataLoader(dataset, batch_size=args.batch_size, shuffle=True, num_workers=args.num_workers)
     
     model.to(device=args.device)
     model.train()
     
-    # To control outer update parameter
-    # If you want to control inner update parameter, please see update_parameters function in ./maml/utils.py
-    freeze_params = [p for name, p in model.named_parameters() if 'classifier' in name]
-    learnable_params = [p for name, p in model.named_parameters() if 'classifier' not in name]
+    # To control update parameter
+    head_params = [p for name, p in model.named_parameters() if 'classifier' in name]
+    body_params = [p for name, p in model.named_parameters() if 'classifier' not in name]
+    
+    # inner update
+    step_size = OrderedDict()
+    for name, _ in model.named_parameters():
+        if 'classifier' in name:
+            step_size[name] = args.classifier_step_size
+        else:
+            step_size[name] = args.extractor_step_size
+    
+    # outer update
     if args.outer_fix:
-        meta_optimizer = torch.optim.Adam([{'params': freeze_params, 'lr': 0},
-                                           {'params': learnable_params, 'lr': args.meta_lr}])
+        meta_optimizer = torch.optim.Adam([{'params': head_params, 'lr': 0},
+                                           {'params': body_params, 'lr': args.meta_lr}])
     else:
-        meta_optimizer = torch.optim.Adam([{'params': freeze_params, 'lr': args.meta_lr},
-                                           {'params': learnable_params, 'lr': args.meta_lr}])
+        meta_optimizer = torch.optim.Adam([{'params': head_params, 'lr': args.meta_lr},
+                                           {'params': body_params, 'lr': args.meta_lr}])
     
     if args.meta_train:
         total = args.train_batches
@@ -73,9 +74,7 @@ def main(args, mode, iteration=None):
             if args.centering:
                 fc_weight_mean = torch.mean(model.classifier.weight.data, dim=0)
                 model.classifier.weight.data -= fc_weight_mean
-                
-            model.zero_grad()
-            
+                            
             support_inputs, support_targets = batch['train']
             support_inputs = support_inputs.to(device=args.device)
             support_targets = support_targets.to(device=args.device)
@@ -94,14 +93,12 @@ def main(args, mode, iteration=None):
                     inner_loss = F.cross_entropy(support_logit, support_target)
                     
                     model.zero_grad()
-                    
-                    params = update_parameters(model,
-                                               inner_loss,
-                                               extractor_step_size=args.extractor_step_size,
-                                               classifier_step_size=args.classifier_step_size,
+                    params = update_parameters(model=model,
+                                               loss=inner_loss,
                                                params=params,
+                                               step_size=step_size,
                                                first_order=args.first_order)
-                    
+                
                 query_features, query_logit = model(query_input, params=params)
                 outer_loss += F.cross_entropy(query_logit, query_target)
                 
@@ -114,6 +111,7 @@ def main(args, mode, iteration=None):
             accuracy_logs.append(accuracy.item())
             
             if args.meta_train:
+                meta_optimizer.zero_grad()
                 outer_loss.backward()
                 meta_optimizer.step()
                 

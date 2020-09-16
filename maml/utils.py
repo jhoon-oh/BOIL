@@ -157,9 +157,8 @@ def load_model(args):
 
 def update_parameters(model,
                       loss,
-                      extractor_step_size,
-                      classifier_step_size,
                       params=None,
+                      step_size=None,
                       first_order=False):
     """Update of the meta-parameters with one step of gradient descent on the
     loss function.
@@ -197,18 +196,14 @@ def update_parameters(model,
                                 create_graph=not first_order)
 
     updated_params = OrderedDict()
-        
-    step_size=0.0 # not OrderedDict type
+
     if isinstance(step_size, (dict, OrderedDict)):
         for (name, param), grad in zip(params.items(), grads):
             updated_params[name] = param - step_size[name] * grad
 
     else:
         for (name, param), grad in zip(params.items(), grads):
-            if 'classifier' in name: # To control inner update parameter
-                updated_params[name] = param - classifier_step_size * grad
-            else:
-                updated_params[name] = param - extractor_step_size * grad
+            updated_params[name] = param - step_size * grad
 
     return updated_params
 
