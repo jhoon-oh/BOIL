@@ -41,6 +41,35 @@ class ConvNet(MetaModule):
         logits = self.classifier(features, params=get_subdict(params, 'classifier'))
         
         return features, logits
+
+class ConvNetTwoFC(MetaModule):
+    def __init__(self, in_channels, out_features, hidden_size, wh_size):
+        super(ConvNetTwoFC, self).__init__()
+        self.in_channels = in_channels
+        self.out_features = out_features
+        self.hidden_size = hidden_size
+        
+        self.features = MetaSequential(
+            conv3x3(in_channels, hidden_size),
+            conv3x3(hidden_size, hidden_size),
+            conv3x3(hidden_size, hidden_size),
+            conv3x3(hidden_size, hidden_size)
+        )
+
+        self.features_fc = MetaLinear(hidden_size*wh_size*wh_size, 400)
+        self.relu = nn.ReLU()
+        self.classifier = MetaLinear(400, out_features)
+
+    def forward(self, inputs, params=None):
+        features = self.features(inputs, params=get_subdict(params, 'features'))
+        features = features.view((features.size(0), -1))
+        
+        logits = self.features_fc(features, params=get_subdict(params, 'features_fc'))
+        logits = self.relu(logits)
+        logits = self.classifier(logits, params=get_subdict(params, 'classifier'))
+        
+        return features, logits
+    
     
 """
 ResNet

@@ -2,7 +2,7 @@ import copy
 import torch
 import torch.nn as nn
 
-from maml.model import ConvNet, BasicBlock, BasicBlockWithoutResidual, ResNet
+from maml.model import ConvNet, ConvNetTwoFC, BasicBlock, BasicBlockWithoutResidual, ResNet
 from torchmeta.datasets.helpers import (miniimagenet, tieredimagenet, cifar_fs, fc100,
                                         cub, vgg_flower, aircraft, traffic_sign, svhn, cars)
 from collections import OrderedDict
@@ -140,6 +140,8 @@ def load_model(args):
         
     if args.model == '4conv':
         model = ConvNet(in_channels=3, out_features=args.num_ways, hidden_size=args.hidden_size, wh_size=wh_size)
+    elif args.model == '4conv_2fc':
+        model = ConvNetTwoFC(in_channels=3, out_features=args.num_ways, hidden_size=args.hidden_size, wh_size=wh_size)
     elif args.model == 'resnet':
         if args.blocks_type == 'a':
             blocks = [BasicBlock, BasicBlock, BasicBlock, BasicBlock]
