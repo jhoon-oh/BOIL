@@ -26,17 +26,18 @@ class ConvNet(MetaModule):
         self.out_features = out_features
         self.hidden_size = hidden_size
         
-        self.features = MetaSequential(
-            conv3x3(in_channels, hidden_size),
-            conv3x3(hidden_size, hidden_size),
-            conv3x3(hidden_size, hidden_size),
-            conv3x3(hidden_size, hidden_size)
-        )
+        self.conv1 = conv3x3(in_channels, hidden_size)
+        self.conv2 = conv3x3(hidden_size, hidden_size)
+        self.conv3 = conv3x3(hidden_size, hidden_size)
+        self.conv4 = conv3x3(hidden_size, hidden_size)
 
         self.classifier = MetaLinear(hidden_size*wh_size*wh_size, out_features)
 
     def forward(self, inputs, params=None):
-        features = self.features(inputs, params=get_subdict(params, 'features'))
+        features = self.conv1(inputs, params=get_subdict(params, 'conv1'))
+        features = self.conv2(features, params=get_subdict(params, 'conv2'))
+        features = self.conv3(features, params=get_subdict(params, 'conv3'))
+        features = self.conv4(features, params=get_subdict(params, 'conv4'))
         features = features.view((features.size(0), -1))
         logits = self.classifier(features, params=get_subdict(params, 'classifier'))
         
