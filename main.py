@@ -45,12 +45,23 @@ def main(args, mode, iteration=None):
     
     # inner update
     step_size = OrderedDict()
-    for name, _ in model.named_parameters():
-        if 'classifier' in name:
-            step_size[name] = args.classifier_step_size
-        else:
-            step_size[name] = args.extractor_step_size
     
+    if args.model == '4conv_sep':
+        for name, _ in model.named_parameters():
+            if 'classifier' in name:
+                step_size[name] = args.classifier_step_size
+            else:
+                if 'conv'+args.save_name[-1] in name:
+                    step_size[name] = args.extractor_step_size
+                else:
+                    step_size[name] = 0.0
+    else:
+        for name, _ in model.named_parameters():
+            if 'classifier' in name:
+                step_size[name] = args.classifier_step_size
+            else:
+                step_size[name] = args.extractor_step_size
+        
     # outer update
     if args.outer_fix:
         meta_optimizer = torch.optim.Adam([{'params': head_params, 'lr': 0},
@@ -196,7 +207,7 @@ if __name__ == '__main__':
     
     args.device = torch.device(args.device)  
     model = load_model(args)
-    
+        
     if args.ortho_init:
         X = np.random.randn(5, 1600)
         Q = gs(X)

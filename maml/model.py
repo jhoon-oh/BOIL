@@ -37,7 +37,7 @@ class ConvNet(MetaModule):
         features = self.features(inputs, params=get_subdict(params, 'features'))
         features = features.view((features.size(0), -1))
         logits = self.classifier(features, params=get_subdict(params, 'classifier'))
-
+        
         return features, logits
     
 class SeparatedConvNet(MetaModule):

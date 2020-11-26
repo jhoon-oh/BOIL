@@ -205,6 +205,7 @@ def update_parameters(model,
     if isinstance(step_size, (dict, OrderedDict)):
         for (name, param), grad in zip(params.items(), grads):
             updated_params[name] = param - step_size[name] * grad
+            # print (name, torch.norm(grad))
 
     else:
         for (name, param), grad in zip(params.items(), grads):
