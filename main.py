@@ -12,26 +12,6 @@ from collections import OrderedDict
 from torchmeta.utils.data import BatchMetaDataLoader
 from maml.utils import load_dataset, load_model, update_parameters, get_accuracy
 
-def project_vec(u, v):
-    utu = sum(u*u)
-    utv = sum(u*v)
-    return (utv/utu)*u
-
-def gs(X):
-    # Gram-Schmidt function
-    Q = np.zeros(X.shape, dtype=X.dtype)
-    
-    Q[0] = X[0]
-    Q[1] = X[1] - project_vec(Q[0], X[1])
-    Q[2] = X[2] - project_vec(Q[0], X[2]) - project_vec(Q[1], X[2])
-    Q[3] = X[3] - project_vec(Q[0], X[3]) - project_vec(Q[1], X[3]) - project_vec(Q[2], X[3])
-    Q[4] = X[4] - project_vec(Q[0], X[4]) - project_vec(Q[1], X[4]) - project_vec(Q[2], X[4]) - project_vec(Q[3], X[4])
-
-    Q = torch.tensor(Q).type(torch.FloatTensor)
-    Q = Q / torch.norm(Q, dim=1, keepdim=True)
-    
-    return Q
-
 def main(args, mode, iteration=None):
     dataset = load_dataset(args, mode)
     dataloader = BatchMetaDataLoader(dataset, batch_size=args.batch_size, shuffle=True, num_workers=args.num_workers)
@@ -46,7 +26,23 @@ def main(args, mode, iteration=None):
     # inner update
     step_size = OrderedDict()
     
-    if args.model == '4conv_sep':
+    # For ablation study (Appendix K)
+    if args.model=='resnet':
+        for name, _ in model.named_parameters():
+            if 'classifier' in name:
+                step_size[name] = args.classifier_step_size
+            else:
+                if args.save_name in ['MAML_b', 'BOIL_b', 'ANIL_b']:
+                    step_size[name] = args.extractor_step_size
+                else:
+                    name_list = []
+                    for i in args.save_name.split('_')[-1]:
+                        name_list.append("layer" +  i)
+                    if name[:6] in name_list:
+                        step_size[name] = args.extractor_step_size
+                    else:
+                        step_size[name] = 0.0
+    elif args.model == '4conv_sep':
         for name, _ in model.named_parameters():
             if 'classifier' in name:
                 step_size[name] = args.classifier_step_size
@@ -62,7 +58,7 @@ def main(args, mode, iteration=None):
             else:
                 step_size[name] = args.extractor_step_size
         
-    # outer update
+    # outer update (Appendix L)
     if args.outer_fix:
         meta_optimizer = torch.optim.Adam([{'params': head_params, 'lr': 0},
                                            {'params': body_params, 'lr': args.meta_lr}])
