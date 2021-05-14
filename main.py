@@ -26,37 +26,11 @@ def main(args, mode, iteration=None):
     # inner update
     step_size = OrderedDict()
     
-    # For ablation study (Appendix K)
-    if args.model=='resnet':
-        for name, _ in model.named_parameters():
-            if 'classifier' in name:
-                step_size[name] = args.classifier_step_size
-            else:
-                if args.save_name in ['MAML_b', 'BOIL_b', 'ANIL_b']:
-                    step_size[name] = args.extractor_step_size
-                else:
-                    name_list = []
-                    for i in args.save_name.split('_')[-1]:
-                        name_list.append("layer" +  i)
-                    if name[:6] in name_list:
-                        step_size[name] = args.extractor_step_size
-                    else:
-                        step_size[name] = 0.0
-    elif args.model == '4conv_sep':
-        for name, _ in model.named_parameters():
-            if 'classifier' in name:
-                step_size[name] = args.classifier_step_size
-            else:
-                if 'conv'+args.save_name[-1] in name:
-                    step_size[name] = args.extractor_step_size
-                else:
-                    step_size[name] = 0.0
-    else:
-        for name, _ in model.named_parameters():
-            if 'classifier' in name:
-                step_size[name] = args.classifier_step_size
-            else:
-                step_size[name] = args.extractor_step_size
+    for name, _ in model.named_parameters():
+        if 'classifier' in name:
+            step_size[name] = args.classifier_step_size
+        else:
+            step_size[name] = args.extractor_step_size
         
     # outer update (Appendix L)
     if args.outer_fix:
